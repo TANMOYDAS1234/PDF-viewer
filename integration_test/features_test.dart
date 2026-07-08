@@ -4,7 +4,6 @@
 import 'dart:io';
 import 'dart:ui';
 
-import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -47,12 +46,24 @@ void main() {
         true);
   });
 
-  test('PDF -> Images ZIP (uses on-device rasteriser)', () async {
+  test('PDF -> Images: one PNG file per page (on-device rasteriser)', () async {
     final src = await makePdf(3);
-    final out = await PdfTools.pdfToImagesZip(src, 'it_imgs', dpi: 96);
-    expect(out.endsWith('.zip'), true);
-    final archive = ZipDecoder().decodeBytes(File(out).readAsBytesSync());
-    expect(archive.files.where((f) => f.name.endsWith('.png')).length, 3);
+    final outs = await PdfTools.pdfToImages(src, 'it_imgs', dpi: 96);
+    expect(outs.length, 3);
+    expect(outs.every((p) => p.endsWith('.png') && File(p).existsSync()), true);
+
+    final single = await PdfTools.pdfToImages(await makePdf(1), 'it_img1');
+    expect(single.length, 1);
+    expect(single.first.endsWith('.png'), true);
+  });
+
+  test('Bengali/CJK text -> PDF does not crash (universal renderer)', () async {
+    final dir = await Directory.systemTemp.createTemp('lang');
+    final txt = '${dir.path}/bn.txt';
+    await File(txt).writeAsString('বাংলা লেখা 你好 مرحبا Hello', flush: true);
+    final out = await PdfTools.textToPdf(txt, 'it_lang.pdf');
+    expect(File(out).existsSync(), true);
+    expect(PdfTools.pageCount(out), greaterThanOrEqualTo(1));
   });
 
   test('PDF -> Word (.docx) export, readable back', () async {

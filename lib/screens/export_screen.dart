@@ -90,13 +90,13 @@ class _ExportScreenState extends State<ExportScreen> {
       final base = _name.replaceAll('.pdf', '');
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final out = '${base}_$stamp';
-      final path = switch (_out) {
-        _Out.images => await PdfTools.pdfToImagesZip(_path!, out),
-        _Out.word => await PdfTools.pdfToDocx(_path!, out),
-        _Out.text => await PdfTools.pdfToText(_path!, out),
-        _ => '',
+      final paths = switch (_out) {
+        _Out.images => await PdfTools.pdfToImages(_path!, out),
+        _Out.word => [await PdfTools.pdfToDocx(_path!, out)],
+        _Out.text => [await PdfTools.pdfToText(_path!, out)],
+        _ => <String>[],
       };
-      if (mounted && path.isNotEmpty) _showResult(path);
+      if (mounted && paths.isNotEmpty) _showResult(paths);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -107,14 +107,18 @@ class _ExportScreenState extends State<ExportScreen> {
     }
   }
 
-  void _showResult(String path) {
+  void _showResult(List<String> paths) {
+    final many = paths.length > 1;
+    final body = many
+        ? 'Saved ${paths.length} files to:\n${paths.first.substring(0, paths.first.lastIndexOf('/'))}'
+        : 'Saved to:\n${paths.first}';
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: const Icon(Icons.check_circle_rounded,
             color: AppColors.success, size: 44),
         title: Text('Exported to ${_out.label}'),
-        content: Text('Saved to:\n$path', textAlign: TextAlign.center),
+        content: Text(body, textAlign: TextAlign.center),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
@@ -122,10 +126,10 @@ class _ExportScreenState extends State<ExportScreen> {
           FilledButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              Share.shareXFiles([XFile(path)]);
+              Share.shareXFiles(paths.map((p) => XFile(p)).toList());
             },
             icon: const Icon(Icons.share_rounded, size: 18),
-            label: const Text('Share'),
+            label: Text(many ? 'Share all' : 'Share'),
           ),
         ],
       ),

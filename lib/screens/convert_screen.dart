@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/pdf_tools.dart';
 import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
+import 'export_screen.dart';
 import 'tool_result.dart';
 
 enum _Format { images, word, powerpoint, excel, text }
@@ -114,6 +115,35 @@ class _ConvertScreenState extends State<ConvertScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
+              GestureDetector(
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ExportScreen())),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 18),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: scheme.outlineVariant),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.ios_share_rounded,
+                          color: AppColors.primary, size: 20),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Have a PDF? Export it to images, Word or text',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded,
+                          color: scheme.onSurfaceVariant),
+                    ],
+                  ),
+                ),
+              ),
               Text('Select source format',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),

@@ -236,15 +236,27 @@ class PdfTools {
     return _write(outName, await _textPdfBytes(text));
   }
 
-  /// Render plain text into auto-paginated PDF bytes (shared by txt/docx/pptx).
+  /// Render text into PDF bytes correctly for ANY language.
+  ///
+  /// Pure-ASCII uses a fast, selectable native font. Anything else (Bengali,
+  /// Hindi, CJK, Arabic, emoji, …) is laid out with the device's own text
+  /// engine — which has full Unicode + font fallback — and rasterised onto the
+  /// page, so no character can ever crash the conversion.
   static Future<List<int>> _textPdfBytes(String text) async {
+    final content = text.trim().isEmpty ? '(No extractable text found)' : text;
+    final isAscii = content.runes
+        .every((r) => r == 9 || r == 10 || r == 13 || (r >= 32 && r <= 126));
+    return isAscii ? _nativeTextPdf(content) : _imageTextPdf(content);
+  }
+
+  static Future<List<int>> _nativeTextPdf(String content) async {
     final doc = PdfDocument();
     try {
       final page = doc.pages.add();
       final size = page.getClientSize();
       const margin = 40.0;
       PdfTextElement(
-        text: text.trim().isEmpty ? '(No extractable text found)' : text,
+        text: content,
         font: PdfStandardFont(PdfFontFamily.helvetica, 12),
       ).draw(
         page: page,
@@ -255,6 +267,62 @@ class PdfTools {
           breakType: PdfLayoutBreakType.fitPage,
         ),
       );
+      return await doc.save();
+    } finally {
+      doc.dispose();
+    }
+  }
+
+  /// Lay text out with the OS text stack (universal font fallback) and paint it
+  /// onto page images — works for every language Android can render.
+  static Future<List<int>> _imageTextPdf(String content) async {
+    const pageWpt = 595.0, pageHpt = 842.0, marginPt = 36.0, fontPt = 12.0;
+    const scale = 150.0 / 72.0; // 150 DPI
+    final pageWpx = (pageWpt * scale).round();
+    final pageHpx = (pageHpt * scale).round();
+    final marginPx = marginPt * scale;
+    final contentWpx = pageWpx - 2 * marginPx;
+    final contentHpx = pageHpx - 2 * marginPx;
+
+    final paragraph = (ParagraphBuilder(
+              ParagraphStyle(fontSize: fontPt * scale, height: 1.35))
+          ..pushStyle(TextStyle(color: const Color(0xFF111111)))
+          ..addText(content))
+        .build()
+      ..layout(ParagraphConstraints(width: contentWpx));
+
+    // Break into pages at line boundaries so no line is cut in half.
+    final pageStarts = <double>[0];
+    var top = 0.0, y = 0.0;
+    for (final m in paragraph.computeLineMetrics()) {
+      if (y - top + m.height > contentHpx && y > top) {
+        pageStarts.add(y);
+        top = y;
+      }
+      y += m.height;
+    }
+
+    final doc = PdfDocument();
+    doc.pageSettings.margins.all = 0;
+    doc.pageSettings.size = const Size(pageWpt, pageHpt);
+    try {
+      for (final startY in pageStarts) {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder,
+            Rect.fromLTWH(0, 0, pageWpx.toDouble(), pageHpx.toDouble()));
+        canvas.drawColor(const Color(0xFFFFFFFF), BlendMode.src);
+        canvas.clipRect(
+            Rect.fromLTWH(marginPx, marginPx, contentWpx, contentHpx));
+        canvas.drawParagraph(paragraph, Offset(marginPx, marginPx - startY));
+        final image = await recorder.endRecording().toImage(pageWpx, pageHpx);
+        final data = await image.toByteData(format: ImageByteFormat.png);
+        image.dispose();
+        final page = doc.pages.add();
+        final s = page.getClientSize();
+        page.graphics.drawImage(
+            PdfBitmap(data!.buffer.asUint8List()),
+            Rect.fromLTWH(0, 0, s.width, s.height));
+      }
       return await doc.save();
     } finally {
       doc.dispose();
@@ -302,34 +370,19 @@ class PdfTools {
         .toList()
       ..sort((a, b) => _numIn(a.name).compareTo(_numIn(b.name)));
 
-    final output = PdfDocument();
-    try {
-      final font = PdfStandardFont(PdfFontFamily.helvetica, 12);
-      for (var i = 0; i < slides.length; i++) {
-        final xmlStr = utf8.decode(slides[i].content as List<int>);
-        final doc = XmlDocument.parse(xmlStr);
-        final text = doc
-            .findAllElements('t', namespace: '*')
-            .map((e) => e.innerText)
-            .where((t) => t.trim().isNotEmpty)
-            .join('\n');
-        final page = output.pages.add();
-        final size = page.getClientSize();
-        PdfTextElement(text: 'Slide ${i + 1}\n\n$text', font: font).draw(
-          page: page,
-          bounds:
-              Rect.fromLTWH(40, 40, size.width - 80, size.height - 80),
-          format: PdfLayoutFormat(
-            layoutType: PdfLayoutType.paginate,
-            breakType: PdfLayoutBreakType.fitPage,
-          ),
-        );
-      }
-      if (slides.isEmpty) output.pages.add();
-      return await output.save();
-    } finally {
-      output.dispose();
+    final buffer = StringBuffer();
+    for (var i = 0; i < slides.length; i++) {
+      final doc = XmlDocument.parse(utf8.decode(slides[i].content as List<int>));
+      final text = doc
+          .findAllElements('t', namespace: '*')
+          .map((e) => e.innerText)
+          .where((t) => t.trim().isNotEmpty)
+          .join('\n');
+      buffer.writeln('— Slide ${i + 1} —');
+      buffer.writeln(text);
+      buffer.writeln();
     }
+    return _textPdfBytes(buffer.toString().trim());
   }
 
   /// Excel (.xlsx) → PDF: render the first worksheet as a table.
@@ -384,34 +437,14 @@ class PdfTools {
       }
     }
 
-    final doc = PdfDocument();
-    try {
-      final page = doc.pages.add();
-      final grid = PdfGrid();
-      grid.columns.add(count: maxCols == 0 ? 1 : maxCols);
-      for (final row in rows) {
-        final gr = grid.rows.add();
-        for (var c = 0; c < gr.cells.count; c++) {
-          gr.cells[c].value = row[c] ?? '';
-        }
-      }
-      grid.style = PdfGridStyle(
-        font: PdfStandardFont(PdfFontFamily.helvetica, 9),
-        cellPadding: PdfPaddings(left: 2, right: 2, top: 1, bottom: 1),
-      );
-      final size = page.getClientSize();
-      grid.draw(
-        page: page,
-        bounds: Rect.fromLTWH(20, 20, size.width - 40, size.height - 40),
-        format: PdfLayoutFormat(
-          layoutType: PdfLayoutType.paginate,
-          breakType: PdfLayoutBreakType.fitPage,
-        ),
-      );
-      return await doc.save();
-    } finally {
-      doc.dispose();
+    // Render the sheet as text (tab-separated cells) through the universal
+    // renderer so any language works.
+    final buffer = StringBuffer();
+    for (final row in rows) {
+      final cells = List<String>.generate(maxCols, (i) => row[i] ?? '');
+      buffer.writeln(cells.join('    '));
     }
+    return _textPdfBytes(buffer.toString().trim());
   }
 
   static int _numIn(String name) =>
@@ -440,19 +473,25 @@ class PdfTools {
     return _writeRaw(_ext(outName, 'txt'), utf8.encode(text));
   }
 
-  /// PDF → a ZIP of one PNG per page (rendered at [dpi]).
-  static Future<String> pdfToImagesZip(String pdfPath, String outName,
+  /// PDF → one PNG file per page (rendered at [dpi]). Returns the saved image
+  /// paths — a single file for a one-page PDF, several for a multi-page one.
+  static Future<List<String>> pdfToImages(String pdfPath, String baseName,
       {int dpi = 150}) async {
     final bytes = await File(pdfPath).readAsBytes();
-    final archive = Archive();
-    var i = 1;
+    final base = baseName.replaceAll(RegExp(r'\.(pdf|png|zip)$'), '');
+    final paths = <String>[];
+    // First pass to know the page count (so single-page files aren't suffixed).
+    final pngs = <List<int>>[];
     await for (final raster in Printing.raster(bytes, dpi: dpi.toDouble())) {
-      final png = await raster.toPng();
-      archive.addFile(ArchiveFile(
-          'page_${i.toString().padLeft(3, '0')}.png', png.length, png));
-      i++;
+      pngs.add(await raster.toPng());
     }
-    return _writeRaw(_ext(outName, 'zip'), ZipEncoder().encode(archive));
+    for (var i = 0; i < pngs.length; i++) {
+      final name = pngs.length == 1
+          ? '$base.png'
+          : '${base}_page_${(i + 1).toString().padLeft(3, '0')}.png';
+      paths.add(await _writeRaw(name, pngs[i]));
+    }
+    return paths;
   }
 
   /// PDF → Word (.docx): extracts the text into a real, editable document.
