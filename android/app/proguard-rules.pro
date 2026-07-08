@@ -27,5 +27,15 @@
 -keep class net.nfet.** { *; }
 -dontwarn net.nfet.**
 
+# ML Kit document scanner pulls in optional Huawei HMS / Cronet / Conscrypt /
+# BouncyCastle network classes (only used on Huawei devices). Ignore them.
+-dontwarn com.huawei.**
+-dontwarn org.chromium.net.**
+-dontwarn org.conscrypt.**
+-dontwarn com.android.org.conscrypt.**
+-dontwarn org.bouncycastle.**
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
 # Keep annotations and generic signatures
 -keepattributes *Annotation*, Signature, InnerClasses, EnclosingMethod

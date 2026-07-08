@@ -6,9 +6,11 @@ import 'package:intl/intl.dart';
 
 import '../main.dart';
 import '../services/recent_files.dart';
+import '../services/scan_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/gradient_button.dart';
 import '../widgets/pdf_thumbnail.dart';
+import 'scan_review_screen.dart';
 import 'viewer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -65,6 +67,26 @@ class _HomeScreenState extends State<HomeScreen> {
     _refresh();
   }
 
+  Future<void> _scan() async {
+    try {
+      final images = await ScanService.scan();
+      if (images == null || images.isEmpty || !mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => ScanReviewScreen(imagePaths: images)),
+      );
+      _refresh();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text(
+                  'Scanner unavailable. Update Google Play services and try again.')),
+        );
+      }
+    }
+  }
+
   void _viewAll() {
     final ctx = _allDocsKey.currentContext;
     if (ctx != null) {
@@ -102,6 +124,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: 'Open File',
                       icon: Icons.add_circle_outline_rounded,
                       onPressed: _pickAndOpen,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _scan,
+                        icon: const Icon(Icons.document_scanner_outlined),
+                        label: const Text('Scan Document'),
+                        style: OutlinedButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16)),
+                      ),
                     ),
                     const SizedBox(height: 28),
                     if (_recents.isEmpty)

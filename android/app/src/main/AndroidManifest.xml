@@ -61,6 +61,12 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
+        <!-- Preload the ML Kit document-scanner module so the first scan is
+             instant instead of downloading on demand. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="docscanner" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

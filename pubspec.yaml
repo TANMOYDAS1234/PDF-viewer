@@ -49,6 +49,7 @@ dependencies:
   image: ^4.8.0
   archive: ^4.0.9
   xml: ^6.6.1
+  cunning_document_scanner: ^2.5.0
   # Monetization SDKs (google_mobile_ads, in_app_purchase) are intentionally
   # disabled for personal use. Re-add them via monetization_disabled/README.md
   # before publishing to the Play Store.
