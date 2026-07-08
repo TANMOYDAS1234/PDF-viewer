@@ -5,6 +5,7 @@ import '../services/pdf_tools.dart';
 import '../theme/app_theme.dart';
 import 'compress_screen.dart';
 import 'convert_screen.dart';
+import 'export_screen.dart';
 import 'merge_screen.dart';
 import 'split_screen.dart';
 import 'tool_result.dart';
@@ -198,6 +199,15 @@ class _OptimizeTab extends StatelessWidget {
           action: 'SELECT PAGES',
           onTap: () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => const SplitScreen())),
+        ),
+        _FeatureCard(
+          icon: Icons.ios_share_rounded,
+          title: 'Export PDF',
+          description:
+              'Turn a PDF into page images, an editable Word document or plain text.',
+          action: 'EXPORT PDF',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const ExportScreen())),
         ),
         Row(
           children: [

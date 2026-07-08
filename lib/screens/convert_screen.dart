@@ -33,14 +33,18 @@ extension _FormatInfo on _Format {
         _Format.text => const Color(0xFF6B7280),
       };
 
-  bool get offlineSupported => this == _Format.images || this == _Format.text;
+  bool get isOffice =>
+      this == _Format.word || this == _Format.powerpoint || this == _Format.excel;
 
   List<String> get extensions => switch (this) {
-        _Format.images => ['jpg', 'jpeg', 'png', 'bmp', 'webp'],
-        _Format.text => ['txt'],
-        _Format.word => ['doc', 'docx'],
-        _Format.powerpoint => ['ppt', 'pptx'],
-        _Format.excel => ['xls', 'xlsx'],
+        _Format.images => [
+            'jpg', 'jpeg', 'png', 'bmp', 'gif', 'webp', 'tif', 'tiff', 'tga',
+            'ico'
+          ],
+        _Format.text => ['txt', 'md', 'csv', 'log', 'json', 'xml', 'yaml'],
+        _Format.word => ['docx'],
+        _Format.powerpoint => ['pptx'],
+        _Format.excel => ['xlsx'],
       };
 }
 
@@ -76,14 +80,17 @@ class _ConvertScreenState extends State<ConvertScreen> {
     setState(() => _busy = true);
     try {
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final String path;
-      if (_format == _Format.images) {
-        path = await PdfTools.imagesToPdf(
-            _files.map((e) => e.path!).toList(), 'images_$stamp.pdf');
-      } else {
-        final base = _files.first.name.replaceAll('.txt', '');
-        path = await PdfTools.textToPdf(_files.first.path!, '${base}_$stamp.pdf');
-      }
+      final first = _files.first.path!;
+      final base = _files.first.name.replaceAll(RegExp(r'\.[^.]+$'), '');
+      final out = '${base}_$stamp.pdf';
+      final path = switch (_format) {
+        _Format.images => await PdfTools.imagesToPdf(
+            _files.map((e) => e.path!).toList(), 'images_$stamp.pdf'),
+        _Format.text => await PdfTools.textToPdf(first, out),
+        _Format.word => await PdfTools.docxToPdf(first, out),
+        _Format.powerpoint => await PdfTools.pptxToPdf(first, out),
+        _Format.excel => await PdfTools.xlsxToPdf(first, out),
+      };
       if (mounted) {
         setState(_files.clear);
         showToolResult(context, path);
@@ -112,18 +119,19 @@ class _ConvertScreenState extends State<ConvertScreen> {
               const SizedBox(height: 12),
               _formatGrid(scheme),
               const SizedBox(height: 24),
-              if (_format.offlineSupported)
-                _dropzone(scheme)
-              else
-                _offlineNote(scheme),
-              if (_files.isNotEmpty && _format.offlineSupported) ...[
+              _dropzone(scheme),
+              if (_format.isOffice) ...[
+                const SizedBox(height: 12),
+                _officeNote(scheme),
+              ],
+              if (_files.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _fileList(scheme),
               ],
             ],
           ),
         ),
-        if (_format.offlineSupported && _files.isNotEmpty)
+        if (_files.isNotEmpty)
           SafeArea(
             top: false,
             child: Padding(
@@ -230,35 +238,25 @@ class _ConvertScreenState extends State<ConvertScreen> {
     );
   }
 
-  Widget _offlineNote(ColorScheme scheme) {
+  Widget _officeNote(ColorScheme scheme) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Column(
+      child: Row(
         children: [
-          const Icon(Icons.cloud_off_rounded,
-              color: AppColors.accent, size: 34),
-          const SizedBox(height: 12),
-          Text('${_format.label} → PDF is online-only',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center),
-          const SizedBox(height: 6),
-          Text(
-            'Converting ${_format.label} files needs a rendering engine that '
-            'isn\'t available on-device. To keep your files private and offline, '
-            'this is coming later via an optional online service.\n\n'
-            'Images and Text convert fully offline right now.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.45),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: () => setState(() => _format = _Format.images),
-            icon: const Icon(Icons.image_outlined, size: 18),
-            label: const Text('Use Images instead'),
+          const Icon(Icons.info_outline_rounded,
+              color: AppColors.accent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Text and tables are extracted into the PDF on-device. Images and '
+              'complex layouts are simplified. Works with .${_format.extensions.first} files.',
+              style: TextStyle(
+                  color: scheme.onSurfaceVariant, fontSize: 12.5, height: 1.4),
+            ),
           ),
         ],
       ),
