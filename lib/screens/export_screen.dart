@@ -17,7 +17,7 @@ extension _OutInfo on _Out {
         _Out.text => 'Text',
       };
   String get sub => switch (this) {
-        _Out.images => 'PNG in a ZIP',
+        _Out.images => 'PNG files',
         _Out.word => 'DOCX',
         _Out.powerpoint => 'PPTX',
         _Out.excel => 'XLSX',
