@@ -14,12 +14,27 @@ class CompressScreen extends StatefulWidget {
   State<CompressScreen> createState() => _CompressScreenState();
 }
 
+class _CompressLevel {
+  final String label;
+  final String subtitle;
+  final int dpi;
+  final int quality;
+  const _CompressLevel(this.label, this.subtitle, this.dpi, this.quality);
+}
+
+const _levels = [
+  _CompressLevel('High quality', 'Larger file, sharpest', 150, 82),
+  _CompressLevel('Balanced', 'Recommended', 110, 60),
+  _CompressLevel('Smallest', 'Strongest compression', 90, 45),
+];
+
 class _CompressScreenState extends State<CompressScreen> {
   String? _path;
   String _name = '';
   int _originalSize = 0;
   bool _busy = false;
   CompressResult? _result;
+  int _levelIndex = 1; // Balanced
 
   @override
   void initState() {
@@ -47,8 +62,14 @@ class _CompressScreenState extends State<CompressScreen> {
     if (_path == null) return;
     setState(() => _busy = true);
     try {
+      final level = _levels[_levelIndex];
       final base = _name.replaceAll('.pdf', '');
-      final res = await PdfTools.compress(_path!, '${base}_compressed.pdf');
+      final res = await PdfTools.compress(
+        _path!,
+        '${base}_compressed.pdf',
+        dpi: level.dpi,
+        quality: level.quality,
+      );
       setState(() => _result = res);
     } catch (e) {
       if (mounted) {
@@ -142,24 +163,81 @@ class _CompressScreenState extends State<CompressScreen> {
   }
 
   Widget _intro(ColorScheme scheme) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'We\'ll re-pack the document with the best lossless compression to '
-              'shrink its size without changing how it looks.',
-              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Compression level',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 10),
+        for (var i = 0; i < _levels.length; i++) _levelTile(scheme, i),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.accent.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(14),
           ),
-        ],
+          child: Row(
+            children: [
+              const Icon(Icons.info_outline_rounded,
+                  color: AppColors.accent, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Compression re-encodes page images. Great for scanned/photo '
+                  'PDFs. Text becomes part of the image (not selectable).',
+                  style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 12.5,
+                      height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _levelTile(ColorScheme scheme, int i) {
+    final level = _levels[i];
+    final selected = _levelIndex == i;
+    return GestureDetector(
+      onTap: () => setState(() => _levelIndex = i),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? AppColors.primary : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              selected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: selected ? AppColors.primary : scheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(level.label,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(level.subtitle,
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.onSurfaceVariant)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../services/pdf_tools.dart';
 import '../theme/app_theme.dart';
 import 'compress_screen.dart';
+import 'convert_screen.dart';
 import 'merge_screen.dart';
 import 'split_screen.dart';
 import 'tool_result.dart';
@@ -54,12 +55,7 @@ class ToolsScreen extends StatelessWidget {
                 child: TabBarView(
                   children: [
                     _OptimizeTab(),
-                    _ComingSoonTab(
-                      icon: Icons.sync_alt_rounded,
-                      title: 'Convert',
-                      message:
-                          'PDF ⇄ images, Word and more are coming in a future update.',
-                    ),
+                    ConvertScreen(),
                     _SecurityTab(),
                   ],
                 ),
@@ -307,40 +303,6 @@ class _SecurityTab extends StatelessWidget {
           onTap: () => _run(context, protect: false),
         ),
       ],
-    );
-  }
-}
-
-// ------------------------------------------------------------------ ComingSoon
-
-class _ComingSoonTab extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String message;
-  const _ComingSoonTab(
-      {required this.icon, required this.title, required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                size: 64, color: AppColors.primary.withValues(alpha: 0.5)),
-            const SizedBox(height: 16),
-            Text('$title — coming soon',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(message,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurfaceVariant)),
-          ],
-        ),
-      ),
     );
   }
 }

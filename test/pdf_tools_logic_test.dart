@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 List<int> _makePdf(int pages) {
@@ -119,6 +120,45 @@ void main() {
 
     // Now it opens with no password.
     expect(_countPages(unlocked), 2);
+  });
+
+  test('images -> pdf: one page per image', () async {
+    final png1 = img.encodePng(img.Image(width: 120, height: 160));
+    final png2 = img.encodePng(img.Image(width: 200, height: 100));
+    final doc = PdfDocument();
+    for (final png in [png1, png2]) {
+      final bmp = PdfBitmap(png);
+      final page = doc.pages.add();
+      final ps = page.getClientSize();
+      page.graphics.drawImage(bmp, Rect.fromLTWH(0, 0, ps.width, ps.height));
+    }
+    final bytes = await doc.save();
+    doc.dispose();
+    expect(_countPages(bytes), 2);
+  });
+
+  test('text -> pdf: long text paginates into a valid PDF', () async {
+    final longText = List.filled(
+            500, 'The quick brown fox jumps over the lazy dog.')
+        .join(' ');
+    final doc = PdfDocument();
+    final page = doc.pages.add();
+    final size = page.getClientSize();
+    PdfTextElement(
+      text: longText,
+      font: PdfStandardFont(PdfFontFamily.helvetica, 12),
+    ).draw(
+      page: page,
+      bounds:
+          Rect.fromLTWH(40, 40, size.width - 80, size.height - 80),
+      format: PdfLayoutFormat(
+        layoutType: PdfLayoutType.paginate,
+        breakType: PdfLayoutBreakType.fitPage,
+      ),
+    );
+    final bytes = await doc.save();
+    doc.dispose();
+    expect(_countPages(bytes), greaterThan(1)); // spilled to multiple pages
   });
 
   test('temp file write/read works (I/O sanity)', () async {
